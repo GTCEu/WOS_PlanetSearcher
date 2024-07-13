@@ -69,7 +69,7 @@ def search_planets(planetbase, search_criteria, top_5_per_subtype=False):
                 planet_color = planet_data.get("Color", [0, 0, 0])
                 color_similarity = rgb_euclidean_distance(search_criteria["Color"], planet_color) if search_criteria["Color"] is not None else 100
                 subtype = planet_data.get("SubType", "Unknown")
-                result = (system, planet_coords, color_similarity, planet_color, subtype, planet_data)
+                result = (system, planet_coords, color_similarity, planet_color, subtype)
                 matching_planets[subtype].append(result)
     
     # Sort planets within each subtype
@@ -79,18 +79,6 @@ def search_planets(planetbase, search_criteria, top_5_per_subtype=False):
             matching_planets[subtype] = matching_planets[subtype][:5]
     
     return matching_planets
-
-# Function to display detailed planet information
-def display_planet_info(planet_data):
-    st.subheader("Planet Details")
-    for key, value in planet_data.items():
-        if key == "Color":
-            color_hex = f"#{int(value[0]):02x}{int(value[1]):02x}{int(value[2]):02x}"
-            st.color_picker(f"{key}:", color_hex, disabled=True)
-        elif isinstance(value, (list, tuple)):
-            st.write(f"{key}: {', '.join(map(str, value))}")
-        else:
-            st.write(f"{key}: {value}")
 
 # Streamlit app
 st.title("Planet Searcher")
@@ -115,7 +103,7 @@ excluded_subtypes = st.multiselect("Excluded SubTypes", list(set(planet["SubType
 search_criteria["ExcludedSubTypes"] = excluded_subtypes
 
 # Temperature
-temp_range = st.slider("Temperature Range (°F)", -273, 400, (-273, 400))
+temp_range = st.slider("Temperature Range (°C)", -273, 1000, (-273, 1000))
 search_criteria["Temperature"] = temp_range
 
 # Atmosphere, TidallyLocked, HasRings
@@ -161,16 +149,13 @@ if st.button("Search Planets"):
     
     for subtype, planets in results.items():
         with st.expander(f"{subtype} ({len(planets)} planets)"):
-            for index, (system, coords, similarity, color, _, planet_data) in enumerate(planets):
-                col1, col2, col3 = st.columns([1, 3, 1])
+            for index, (system, coords, similarity, color, _) in enumerate(planets):
+                col1, col2 = st.columns([1, 4])
                 with col1:
                     color_hex = f"#{int(color[0]):02x}{int(color[1]):02x}{int(color[2]):02x}"
                     st.color_picker("", color_hex, key=f"color_picker_{subtype}_{index}", disabled=True)
                 with col2:
                     st.write(f"{system}, {coords} - Color Similarity: {similarity:.2f}%")
-                with col3:
-                    if st.button("More Info", key=f"info_button_{subtype}_{index}"):
-                        display_planet_info(planet_data)
 
 # Instructions
 st.markdown("---")
@@ -182,4 +167,3 @@ st.markdown("4. Adjust the minimum color similarity slider to filter results bas
 st.markdown("5. Click 'Search Planets' to see the results.")
 st.markdown("6. Results are organized by subtype in collapsible sections.")
 st.markdown("7. The color picker shows the planet's color, and the text shows the system, coordinates, and color similarity.")
-st.markdown("8. Click the 'More Info' button next to a planet to see detailed information about it.")
