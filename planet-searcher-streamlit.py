@@ -69,7 +69,7 @@ def search_planets(planetbase, search_criteria, top_5_per_subtype=False):
                 planet_color = planet_data.get("Color", [0, 0, 0])
                 color_similarity = rgb_euclidean_distance(search_criteria["Color"], planet_color) if search_criteria["Color"] is not None else 100
                 subtype = planet_data.get("SubType", "Unknown")
-                result = (system, planet_coords, color_similarity, planet_color, subtype)
+                result = (system, planet_coords, color_similarity, planet_color, subtype, planet_data)
                 matching_planets[subtype].append(result)
     
     # Sort planets within each subtype
@@ -79,6 +79,18 @@ def search_planets(planetbase, search_criteria, top_5_per_subtype=False):
             matching_planets[subtype] = matching_planets[subtype][:5]
     
     return matching_planets
+
+# Function to display detailed planet information
+def display_planet_info(planet_data):
+    st.subheader("Planet Details")
+    for key, value in planet_data.items():
+        if key == "Color":
+            color_hex = f"#{int(value[0]):02x}{int(value[1]):02x}{int(value[2]):02x}"
+            st.color_picker(f"{key}:", color_hex, disabled=True)
+        elif isinstance(value, (list, tuple)):
+            st.write(f"{key}: {', '.join(map(str, value))}")
+        else:
+            st.write(f"{key}: {value}")
 
 # Streamlit app
 st.title("Planet Searcher")
@@ -103,7 +115,7 @@ excluded_subtypes = st.multiselect("Excluded SubTypes", list(set(planet["SubType
 search_criteria["ExcludedSubTypes"] = excluded_subtypes
 
 # Temperature
-temp_range = st.slider("Temperature Range (°C)", -273, 1000, (-273, 1000))
+temp_range = st.slider("Temperature Range (°F)", -273, 400, (-273, 400))
 search_criteria["Temperature"] = temp_range
 
 # Atmosphere, TidallyLocked, HasRings
@@ -149,44 +161,16 @@ if st.button("Search Planets"):
     
     for subtype, planets in results.items():
         with st.expander(f"{subtype} ({len(planets)} planets)"):
-            # Create a list of planet names for the dropdown
-            planet_names = [f"{system}, {coords}" for system, coords, _, _, _ in planets]
-            
-            # Create a dropdown menu for planet selection
-            selected_planet = st.selectbox(f"Select a planet in {subtype}", [""] + planet_names, key=f"dropdown_{subtype}")
-            
-            if selected_planet:
-                # Find the selected planet's data
-                selected_system, selected_coords = selected_planet.split(", ")
-                selected_planet_data = planetbase[selected_system][selected_coords]
-                
-                # Display detailed information about the selected planet
-                st.write("### Planet Details")
-                col1, col2 = st.columns(2)
-                
+            for index, (system, coords, similarity, color, _, planet_data) in enumerate(planets):
+                col1, col2, col3 = st.columns([1, 3, 1])
                 with col1:
-                    st.write(f"**System:** {selected_system}")
-                    st.write(f"**Coordinates:** {selected_coords}")
-                    st.write(f"**Type:** {selected_planet_data.get('Type', 'Unknown')}")
-                    st.write(f"**SubType:** {selected_planet_data.get('SubType', 'Unknown')}")
-                    st.write(f"**Temperature:** {selected_planet_data.get('Temperature', 'Unknown')} °C")
-                    st.write(f"**Gravity:** {selected_planet_data.get('Gravity', 'Unknown')} g")
-                
+                    color_hex = f"#{int(color[0]):02x}{int(color[1]):02x}{int(color[2]):02x}"
+                    st.color_picker("", color_hex, key=f"color_picker_{subtype}_{index}", disabled=True)
                 with col2:
-                    st.write(f"**Atmosphere:** {'Yes' if selected_planet_data.get('Atmosphere', False) else 'No'}")
-                    st.write(f"**Tidally Locked:** {'Yes' if selected_planet_data.get('TidallyLocked', False) else 'No'}")
-                    st.write(f"**Has Rings:** {'Yes' if selected_planet_data.get('HasRings', False) else 'No'}")
-                    st.write(f"**Resources:** {', '.join(selected_planet_data.get('Resources', ['None']))}")
-                
-                # Display planet color
-                planet_color = selected_planet_data.get('Color', [0, 0, 0])
-                color_hex = f"#{int(planet_color[0]):02x}{int(planet_color[1]):02x}{int(planet_color[2]):02x}"
-                st.color_picker("Planet Color", color_hex, key=f"color_picker_{subtype}", disabled=True)
-                
-                # If there's a search color, show similarity
-                if search_criteria["Color"] is not None:
-                    color_similarity = rgb_euclidean_distance(search_criteria["Color"], planet_color)
-                    st.write(f"**Color Similarity:** {color_similarity:.2f}%")
+                    st.write(f"{system}, {coords} - Color Similarity: {similarity:.2f}%")
+                with col3:
+                    if st.button("More Info", key=f"info_button_{subtype}_{index}"):
+                        display_planet_info(planet_data)
 
 # Instructions
 st.markdown("---")
@@ -197,5 +181,5 @@ st.markdown("3. If using color search, you can choose to get the top 5 results f
 st.markdown("4. Adjust the minimum color similarity slider to filter results based on color matching.")
 st.markdown("5. Click 'Search Planets' to see the results.")
 st.markdown("6. Results are organized by subtype in collapsible sections.")
-st.markdown("7. Use the dropdown menu in each subtype to select a specific planet and view its details.")
-st.markdown("8. The color picker shows the planet's color, and detailed information is displayed below it.")
+st.markdown("7. The color picker shows the planet's color, and the text shows the system, coordinates, and color similarity.")
+st.markdown("8. Click the 'More Info' button next to a planet to see detailed information about it.")
