@@ -50,7 +50,7 @@ def planet_matches_criteria(planet_data, criteria):
             if value is not None:
                 planet_color = planet_data.get("Color", [0, 0, 0])
                 color_similarity = rgb_euclidean_distance(value, planet_color)
-                if color_similarity <= 80:
+                if color_similarity < criteria["MinColorSimilarity"]:
                     return False
         elif key in ["Atmosphere", "TidallyLocked", "HasRings"]:
             if value is not None and planet_data.get(key, False) != value:
@@ -135,6 +135,9 @@ elif color_option == "Image Upload":
 else:
     search_criteria["Color"] = None
 
+# Minimum color similarity slider
+search_criteria["MinColorSimilarity"] = st.slider("Minimum Color Similarity (%)", 0, 100, 80)
+
 # Option for top 5 results per subtype
 top_5_per_subtype = st.checkbox("Get top 5 results for each subtype (only applies when color is provided)")
 
@@ -154,12 +157,13 @@ if st.button("Search Planets"):
                 with col2:
                     st.write(f"{system}, {coords} - Color Similarity: {similarity:.2f}%")
 
-# Instructiosn
+# Instructions
 st.markdown("---")
 st.markdown("**Instructions:**")
 st.markdown("1. Upload a planets.json file to start.")
 st.markdown("2. Set your search criteria using the inputs above.")
 st.markdown("3. If using color search, you can choose to get the top 5 results for each subtype.")
-st.markdown("4. Click 'Search Planets' to see the results.")
-st.markdown("5. Results are organized by subtype in collapsible sections.")
-st.markdown("6. The color picker shows the planet's color, and the text shows the system, coordinates, and color similarity.")
+st.markdown("4. Adjust the minimum color similarity slider to filter results based on color matching.")
+st.markdown("5. Click 'Search Planets' to see the results.")
+st.markdown("6. Results are organized by subtype in collapsible sections.")
+st.markdown("7. The color picker shows the planet's color, and the text shows the system, coordinates, and color similarity.")
