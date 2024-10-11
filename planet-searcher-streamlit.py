@@ -22,13 +22,16 @@ def rgb_euclidean_distance(color1, color2):
         return 0
 
 # Function to get the average color of an image
-def get_image_colors(image):
+def get_dominant_color(image):
     img_array = np.array(image)
     mean_color = np.mean(img_array, axis=(0, 1))
     return mean_color.astype(int)
 
 # Function to check if a planet matches the search criteria
 def planet_matches_criteria(planet_data, criteria):
+    if isinstance(planet_data, bool):
+        return planet_data == criteria
+
     for key, value in criteria.items():
         if key == "Temperature":
             if value[0] != "" and ("Temperature" not in planet_data or planet_data["Temperature"] < float(value[0])):
@@ -48,35 +51,56 @@ def planet_matches_criteria(planet_data, criteria):
                 return False
         elif key == "Color":
             if value is not None:
-                planet_color = planet_data.get("Color", [0, 0, 0])
+                planet_color = planet_data.get("PrimaryColor", [0, 0, 0])
                 color_similarity = rgb_euclidean_distance(value, planet_color)
                 if color_similarity < criteria["MinColorSimilarity"]:
                     return False
         elif key in ["Atmosphere", "TidallyLocked", "HasRings"]:
-            if value is not None and planet_data.get(key, False) != value:
+            if value is not None and value != "Any" and planet_data.get(key, False) != value:
                 return False
         elif key in ["Type", "SubType"]:
-            if value and planet_data.get(key) != value:
+            if value and value != "Any" and planet_data.get(key) != value:
                 return False
     return True
 
 # Function to search for planets based on criteria
-def search_planets(planetbase, search_criteria, top_5_per_subtype=False):
+def search_planets(planetbase, search_criteria, top_5_per_subtype):
+    print("Search Criteria:", search_criteria)
+    if not isinstance(planetbase, dict):
+        raise ValueError("planetbase must be a dictionary")
+
     matching_planets = defaultdict(list)
-    for system in planetbase:
-        for planet_coords, planet_data in planetbase[system].items():
-            if planet_matches_criteria(planet_data, search_criteria):
-                planet_color = planet_data.get("Color", [0, 0, 0])
-                color_similarity = rgb_euclidean_distance(search_criteria["Color"], planet_color) if search_criteria["Color"] is not None else 100
-                subtype = planet_data.get("SubType", "Unknown")
-                result = (system, planet_coords, color_similarity, planet_color, subtype)
-                matching_planets[subtype].append(result)
-    
+    for coords, planet_data in planetbase.items():
+        if not isinstance(planet_data, dict):
+            print("Skipping non-dictionary planet data")
+            continue  # Skip if planet_data is not a dictionary
+
+        # Check if planet_data contains all required keys
+        required_keys = ["Type", "SubType", "PrimaryColor", "Resources", "Temperature", "Gravity", "Atmosphere", "TerrainConfig"]
+        if not all(key in planet_data for key in required_keys):
+            print("Skipping planet data with missing keys")
+            continue
+
+        if planet_matches_criteria(planet_data, search_criteria):
+            print("Planet matches criteria!")
+            if search_criteria["Color"] is not None:
+                planet_color = planet_data.get("PrimaryColor", [0, 0, 0])
+                color_similarity = rgb_euclidean_distance(search_criteria["Color"], planet_color)
+            else:
+                color_similarity = 100  # Set color similarity to 100 when color is None
+            subtype = planet_data.get("SubType", "Unknown")
+            result = (coords, color_similarity, planet_data.get("PrimaryColor", [0, 0, 0]), subtype)
+            matching_planets[subtype].append(result)
+        else:
+            print("Planet does not match criteria")
+    print("Matching planets:", matching_planets)
+
     # Sort planets within each subtype
     for subtype in matching_planets:
-        matching_planets[subtype].sort(key=lambda x: x[2], reverse=True)
-        if top_5_per_subtype:
-            matching_planets[subtype] = matching_planets[subtype][:5]
+        if search_criteria["Color"] is not None:
+            matching_planets[subtype].sort(key=lambda x: x[1], reverse=True)
+            if top_5_per_subtype:
+                matching_planets[subtype] = matching_planets[subtype][:5]
     
     return matching_planets
 
@@ -94,29 +118,35 @@ else:
 # Search criteria
 search_criteria = {}
 
-# Type and SubType
-search_criteria["Type"] = st.selectbox("Type", [""] + list(set(planet["Type"] for system in planetbase for planet in planetbase[system].values() if "Type" in planet)))
-search_criteria["SubType"] = st.selectbox("SubType", [""] + list(set(planet["SubType"] for system in planetbase for planet in planetbase[system].values() if "SubType" in planet)))
+# Get unique types and subtypes from planetbase
+types = {planet.get("Type", "Unknown") for planet in planetbase.values()}
+subtypes = {planet.get("SubType", "Unknown") for planet in planetbase.values()}
 
-# Excluded SubTypes
-excluded_subtypes = st.multiselect("Excluded SubTypes", list(set(planet["SubType"] for system in planetbase for planet in planetbase[system].values() if "SubType" in planet)))
+# Create selectboxes for Type and SubType
+search_criteria["Type"] = st.selectbox("Type", [""] + list(types))
+search_criteria["SubType"] = st.selectbox("SubType", [""] + list(subtypes))
+
+# Create multiselect for Excluded SubTypes
+excluded_subtypes = st.multiselect("Excluded SubTypes", list(subtypes))
 search_criteria["ExcludedSubTypes"] = excluded_subtypes
 
-# Temperature
+# Create slider for Temperature Range
 temp_range = st.slider("Temperature Range (°C)", -273, 1000, (-273, 1000))
 search_criteria["Temperature"] = temp_range
 
-# Atmosphere, TidallyLocked, HasRings
+# Create radio buttons for Atmosphere, TidallyLocked, HasRings
 for key in ["Atmosphere", "TidallyLocked", "HasRings"]:
     value = st.radio(key, [("Yes", True), ("No", False), ("Any", None)], format_func=lambda x: x[0])
     search_criteria[key] = value[1]
 
-# Gravity
+# Create slider for Gravity Range
 gravity_range = st.slider("Gravity Range (g)", 0.0, 300.0, (0.0, 300.0))
 search_criteria["Gravity"] = gravity_range
 
-# Resources
-all_resources = list(set(resource for system in planetbase for planet in planetbase[system].values() for resource in planet.get("Resources", [])))
+# Get unique resources from planetbase
+all_resources = list(set(resource for planet in planetbase.values() for resource in planet.get("Resources", {}).keys()))
+
+# Create multiselect for Resources
 search_criteria["Resources"] = st.multiselect("Resources", all_resources)
 
 # Color
@@ -124,19 +154,20 @@ color_option = st.radio("Color Input", ["None", "RGB Values", "Image Upload"])
 if color_option == "RGB Values":
     r = st.slider("Red", 0, 255, 128)
     g = st.slider("Green", 0, 255, 128)
-    b = st.slider("Blue", 0, 255, 128)
+    b = st.slider("Blue ", 0, 255, 128)
     search_criteria["Color"] = [r, g, b]
 elif color_option == "Image Upload":
-    uploaded_image = st.file_uploader("Upload an image for color matching", type=["png", "jpg", "jpeg"])
-    if uploaded_image is not None:
+    uploaded_image = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg"])
+    if uploaded_image:
         image = Image.open(uploaded_image)
-        search_criteria["Color"] = get_image_colors(image)
-        st.image(image, caption="Uploaded Image", use_column_width=True)
+        dominant_color = get_dominant_color(image)
+        search_criteria["Color"] = dominant_color
 else:
     search_criteria["Color"] = None
+    search_criteria["MinColorSimilarity"] = 0  # Set MinColorSimilarity to 0 when color is None
 
-# Minimum color similarity slider
-search_criteria["MinColorSimilarity"] = st.slider("Minimum Color Similarity (%)", 0, 100, 80)
+# Min Color Similarity
+search_criteria["MinColorSimilarity"] = st.slider("Min Color Similarity", 0.0, 100.0, 50.0)
 
 # Option for top 5 results per subtype
 top_5_per_subtype = st.checkbox("Get top 5 results for each subtype (only applies when color is provided)")
@@ -149,13 +180,13 @@ if st.button("Search Planets"):
     
     for subtype, planets in results.items():
         with st.expander(f"{subtype} ({len(planets)} planets)"):
-            for index, (system, coords, similarity, color, _) in enumerate(planets):
+            for index, (coords, similarity, color, subtype) in enumerate(planets):  # Modified line
                 col1, col2 = st.columns([1, 4])
                 with col1:
                     color_hex = f"#{int(color[0]):02x}{int(color[1]):02x}{int(color[2]):02x}"
                     st.color_picker("", color_hex, key=f"color_picker_{subtype}_{index}", disabled=True)
                 with col2:
-                    st.write(f"{system}, {coords} - Color Similarity: {similarity:.2f}%")
+                    st.write(f"{coords} - Color Similarity: {similarity:.2f}%")
 
 # Instructions
 st.markdown("---")
