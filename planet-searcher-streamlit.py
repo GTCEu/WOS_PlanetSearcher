@@ -65,20 +65,17 @@ def planet_matches_criteria(planet_data, criteria):
 
 # Function to search for planets based on criteria
 def search_planets(planetbase, search_criteria, top_5_per_subtype):
-    print("Search Criteria:", search_criteria)
     if not isinstance(planetbase, dict):
         raise ValueError("planetbase must be a dictionary")
 
     matching_planets = defaultdict(list)
     for coords, planet_data in planetbase.items():
         if not isinstance(planet_data, dict):
-            print("Skipping non-dictionary planet data")
             continue  # Skip if planet_data is not a dictionary
 
         # Check if planet_data contains all required keys
         required_keys = ["Type", "SubType", "PrimaryColor", "Resources", "Temperature", "Gravity", "Atmosphere", "TerrainConfig"]
         if not all(key in planet_data for key in required_keys):
-            print("Skipping planet data with missing keys")
             continue
 
         if planet_matches_criteria(planet_data, search_criteria):
@@ -93,7 +90,6 @@ def search_planets(planetbase, search_criteria, top_5_per_subtype):
             matching_planets[subtype].append(result)
         else:
             print("Planet does not match criteria")
-    print("Matching planets:", matching_planets)
 
     # Sort planets within each subtype
     for subtype in matching_planets:
