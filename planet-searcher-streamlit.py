@@ -55,8 +55,14 @@ def planet_matches_criteria(planet_data, criteria):
                 color_similarity = rgb_euclidean_distance(value, planet_color)
                 if color_similarity < criteria["MinColorSimilarity"]:
                     return False
-        elif key in ["Atmosphere", "TidallyLocked", "HasRings"]:
+        elif key in ["Atmosphere", "HasRings"]:
             if value is not None and value != "Any" and planet_data.get(key, False) != value:
+                return False
+        elif key == "TidallyLocked":
+            # Check if DayCycleIncrement is zero
+            day_cycle_increment = planet_data.get("DayCycleIncrement", 0)
+            is_tidally_locked = (day_cycle_increment == 0)
+            if value is not None and value != "Any" and is_tidally_locked != value:
                 return False
         elif key in ["Type", "SubType"]:
             if value and value != "Any" and planet_data.get(key) != value:
